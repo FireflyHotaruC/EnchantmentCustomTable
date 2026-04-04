@@ -40,7 +40,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 
 	private final ItemStackHandler itemHandler = new ItemStackHandler(ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE){
 		@Override
-		public int getStackLimit(int slot, @NotNull ItemStack stack) {
+		public int getStackLimit(int slot, ItemStack stack) {
 			return 1;
 		}
 	};
@@ -75,7 +75,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			if (!itemStackToReplace.isEmpty()) {
 				entity.containerMenu.setCarried(itemStackToReplace.copy());
 				var hasRegenerated = removeEnchantment(itemStackToReplace);
-				if (!hasRegenerated && enchantmentIndexInCache < enchantmentsOnCurrentTool.size()) {
+				if (!hasRegenerated) {
 					enchantmentsOnCurrentTool.set(enchantmentIndexInCache, ItemStack.EMPTY);
 				}
 			} else {
@@ -188,6 +188,17 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			ItemStack itemstack1 = slot.getItem();
 			itemstack = itemstack1.copy();
 			if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
+				if (index == 0) {
+					ItemStack tool = itemHandler.getStackInSlot(0);
+					if (!tool.isEmpty()) {
+						ItemEnchantments emptyEnch = ItemEnchantments.EMPTY;
+						tool.set(EnchantmentHelper.ENCHANTMENTS, emptyEnch);
+					}
+					clearCache();
+					clearPage();
+				} else if (index > 1) {
+					removeEnchantment(itemstack1);
+				}
 				if (!this.moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, this.slots.size(), true))
 					return ItemStack.EMPTY;
 			} else if (!this.moveItemStackTo(itemstack1, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false)) {
@@ -274,12 +285,20 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	public void removed(@NotNull Player playerIn) {
 		super.removed(playerIn);
 		if (playerIn instanceof ServerPlayer) {
-			playerIn.getInventory().placeItemBackInInventory(itemHandler.getStackInSlot(0));
+			for (int i = 0; i < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE; i++) {
+				ItemStack stack = itemHandler.getStackInSlot(i);
+				if (!stack.isEmpty()) {
+					playerIn.getInventory().placeItemBackInInventory(stack);
+					itemHandler.setStackInSlot(i, ItemStack.EMPTY);
+				}
+			}
+			clearPage();
+			clearCache();
 		}
 	}
 
 	public List<EnchantmentInstance> getEnchantmentInstanceFromEnchantedBook(ItemStack enchantedBookItemStack) {
-		DataComponentType<ItemEnchantments> componentType = EnchantmentHelper.getComponentType(enchantedBookItemStack);
+		DataComponentType<ItemEnchantments> componentType = EnchantmentHelper.ENCHANTMENTS;
 		var componentMap = enchantedBookItemStack.getComponents().get(componentType);
 		List<EnchantmentInstance> enchantmentOfBook = new ArrayList<>();
 		if (componentMap != null) {
@@ -292,9 +311,9 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 
 	public boolean checkCanPlaceEnchantedBook(ItemStack stack) {
 		if (Config.ignoreEnchantmentLevelLimit) return true;
-		var itemEnchantments = stack.get(EnchantmentHelper.getComponentType(stack));
+		var itemEnchantments = stack.get(EnchantmentHelper.ENCHANTMENTS);
 		var itemToEnchant = itemHandler.getStackInSlot(0);
-		var itemEnchantmentsOnTool = itemToEnchant.get(EnchantmentHelper.getComponentType(itemToEnchant));
+		var itemEnchantmentsOnTool = itemToEnchant.get(EnchantmentHelper.ENCHANTMENTS);
 		if (itemEnchantments == null || itemEnchantmentsOnTool == null) {
 			return true;
 		}
@@ -317,7 +336,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		ItemStack tool = itemHandler.getStackInSlot(0);
 		if (tool.isEmpty() || tool.is(Items.ENCHANTED_BOOK)) return;
 
-		ItemEnchantments ench = tool.get(EnchantmentHelper.getComponentType(tool));
+		ItemEnchantments ench = tool.get(EnchantmentHelper.ENCHANTMENTS);
 		if (ench == null || ench.isEmpty()) return;
 
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(ench);
@@ -329,7 +348,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			book.enchant(e, lvl);
 			mutable.set(e, 0);
 		}
-		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
+		tool.set(EnchantmentHelper.ENCHANTMENTS, mutable.toImmutable());
 		entity.getInventory().placeItemBackInInventory(book);
 		clearCache();
 		clearPage();
@@ -394,7 +413,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		int pages = 1;
 
 		if (!tool.isEmpty()) {
-			ItemEnchantments ench = tool.get(EnchantmentHelper.getComponentType(tool));
+			ItemEnchantments ench = tool.get(EnchantmentHelper.ENCHANTMENTS);
 			if (ench != null && !ench.isEmpty()) {
 				if (tool.is(Items.ENCHANTED_BOOK) && ench.size() == 1) {
 					var entry = ench.entrySet().iterator().next();
@@ -437,6 +456,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			enchantmentsOnCurrentTool.add(ItemStack.EMPTY);
 		}
 		totalPage = pages;
+		currentPage = Math.min(currentPage, totalPage - 1);
 	}
 
 	public IdMap<Holder<Enchantment>> getAllRegisteredEnchantments() {
@@ -452,7 +472,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		ItemStack tool = itemHandler.getStackInSlot(0);
 		if (tool.isEmpty() || list.isEmpty()) return;
 
-		ItemEnchantments toolEnch = tool.get(EnchantmentHelper.getComponentType(tool));
+		ItemEnchantments toolEnch = tool.get(EnchantmentHelper.ENCHANTMENTS);
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(toolEnch == null ? ItemEnchantments.EMPTY : toolEnch);
 
 		for (var inst : list) {
@@ -466,7 +486,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			mutable.set(e, total);
 		}
 
-		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
+		tool.set(EnchantmentHelper.ENCHANTMENTS, mutable.toImmutable());
 		genEnchantedBookCache();
 		updateEnchantedBookSlots();
 		playSound();
@@ -478,10 +498,11 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		ItemStack tool = itemHandler.getStackInSlot(0);
 		if (tool.isEmpty() || list.isEmpty()) return false;
 
-		ItemEnchantments existing = tool.get(EnchantmentHelper.getComponentType(tool));
+		ItemEnchantments existing = tool.get(EnchantmentHelper.ENCHANTMENTS);
 		if (existing == null || existing.isEmpty()) return false;
 
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(existing);
+		boolean regenerate = false;
 
 		for (var inst : list) {
 			Holder<Enchantment> e = inst.enchantment;
@@ -490,12 +511,13 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			mutable.set(e, next);
 		}
 
-		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
+		tool.set(EnchantmentHelper.ENCHANTMENTS, mutable.toImmutable());
 		int oldPages = totalPage;
 		genEnchantedBookCache();
+		if (totalPage != oldPages) regenerate = true;
 		updateEnchantedBookSlots();
 		playSound();
-		return totalPage != oldPages;
+		return regenerate;
 	}
 
 	private void playSound() {
