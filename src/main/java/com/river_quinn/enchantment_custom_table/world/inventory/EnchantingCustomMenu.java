@@ -501,7 +501,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		if (existing == null || existing.isEmpty()) return false;
 
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(existing);
-		boolean regenerate = false;
 
 		for (var inst : list) {
 			Holder<Enchantment> e = inst.enchantment;
@@ -511,12 +510,9 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		}
 
 		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
-		int oldPages = totalPage;
-		genEnchantedBookCache();
-		if (totalPage != oldPages) regenerate = true;
 		updateEnchantedBookSlots();
 		playSound();
-		return regenerate;
+		return false;
 	}
 
 	private void playSound() {
