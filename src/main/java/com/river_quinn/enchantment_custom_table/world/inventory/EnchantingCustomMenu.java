@@ -243,6 +243,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	}
 
 	public boolean checkCanPlaceEnchantedBook(ItemStack stack) {
+		if (Config.ignoreEnchantmentLevelLimit) { return true; }
 		ItemEnchantments bookEnch = stack.get(EnchantmentHelper.getComponentType(stack));
 		ItemStack tool = itemHandler.getStackInSlot(0);
 		ItemEnchantments toolEnch = tool.get(EnchantmentHelper.getComponentType(tool));
@@ -333,7 +334,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		currentPage = 0;
 		totalPage = 0;
 		enchantmentsOnCurrentTool.clear();
-		setChanged();
 	}
 
 	public void genEnchantedBookCache() {
