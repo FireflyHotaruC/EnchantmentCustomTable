@@ -192,7 +192,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 					ItemStack tool = itemHandler.getStackInSlot(0);
 					if (!tool.isEmpty()) {
 						ItemEnchantments emptyEnch = ItemEnchantments.EMPTY;
-						tool.set(EnchantmentHelper.ENCHANTMENTS, emptyEnch);
 					}
 					clearCache();
 					clearPage();
