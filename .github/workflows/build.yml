@@ -1,6 +1,8 @@
-name: Build
+name: Build NeoForge 1.21.1 Mod
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
+  push:
 
 jobs:
   build:
@@ -10,16 +12,41 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          fetch-tags: true
 
-      - name: Setup JDK 21
+      - name: Clean Gradle cache
+        run: |
+          rm -rf ~/.gradle/caches/neoformruntime
+          rm -rf ~/.gradle/caches/modules-2
+
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: gradle
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Verify Java version
+        run: |
+          java -version
+          javac -version
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
 
       - name: Build with Gradle
-        run: ./gradlew build
+        run: ./gradlew build -Dorg.gradle.java.home=$JAVA_HOME
+        env:
+          GRADLE_OPTS: "-Dfile.encoding=UTF-8"
+
+      - name: Print build artifacts
+        run: ls -la build/libs/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mod-build
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
+            !build/libs/*-dev.jar
+            !build/libs/*-shadow.jar
