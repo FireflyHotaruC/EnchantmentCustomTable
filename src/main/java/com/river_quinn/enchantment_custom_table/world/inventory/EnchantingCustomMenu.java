@@ -84,7 +84,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			if (!itemStackToPut.isEmpty()) {
 				addEnchantment(itemStackToPut, slotId);
 			}
-			genEnchantedBookCache();
 			updateEnchantedBookSlots();
 		} else {
 			super.clicked(slotId, button, clickType, player);
