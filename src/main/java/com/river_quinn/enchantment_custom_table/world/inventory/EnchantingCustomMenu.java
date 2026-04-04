@@ -5,7 +5,6 @@ import com.mojang.logging.LogUtils;
 import com.river_quinn.enchantment_custom_table.Config;
 import com.river_quinn.enchantment_custom_table.block.entity.EnchantingCustomTableBlockEntity;
 import com.river_quinn.enchantment_custom_table.init.ModMenus;
-import com.river_quinn.enchantment_custom_table.utils.EnchantmentUtils;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.minecraft.core.*;
 import net.minecraft.core.component.DataComponentType;
@@ -114,13 +113,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			boundBlockEntity = (EnchantingCustomTableBlockEntity) world.getBlockEntity(pos);
 		}
 
-		this.addSlot(new SlotItemHandler(itemHandler, 0, 8, 8) {
-			@Override
-			public void onQuickCraft(ItemStack newStack, ItemStack oldStack) {
-				super.onQuickCraft(newStack, oldStack);
-				clearCache();
-				clearPage();
-			}
+		addSlot(new SlotItemHandler(itemHandler, 0, 8, 8) {
 
 			@Override
 			public void setByPlayer(ItemStack newStack, ItemStack oldStack) {
@@ -136,7 +129,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			}
 		});
 
-		this.addSlot(new SlotItemHandler(itemHandler, 1, 42, 8) {
+		addSlot(new SlotItemHandler(itemHandler, 1, 42, 8) {
 			@Override
 			public boolean mayPlace(ItemStack stack) {
 				return Items.ENCHANTED_BOOK == stack.getItem()
@@ -163,9 +156,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			int yPos = 8 + row * 18;
 			for (int col = 0; col < ENCHANTED_BOOK_SLOT_COLUMN_COUNT; col++) {
 				int xPos = 61 + col * 18;
-				int final_enchanted_book_index = enchanted_book_index;
-				this.enchantedBookSlots.put(final_enchanted_book_index, this.addSlot(
-					new SlotItemHandler(itemHandler, final_enchanted_book_index + 2, xPos, yPos) {
+				addSlot(new SlotItemHandler(itemHandler, enchanted_book_index + 2, xPos, yPos) {
 						@Override
 						public boolean mayPlace(ItemStack stack) {
 							return Items.ENCHANTED_BOOK == stack.getItem()
@@ -208,7 +199,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
 				if (!this.moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, this.slots.size(), true))
 					return ItemStack.EMPTY;
-				slot.onQuickCraft(itemstack1, itemstack);
 			} else if (!this.moveItemStackTo(itemstack1, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false)) {
 				if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27) {
 					if (!this.moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, this.slots.size(), true))
@@ -307,9 +297,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		List<EnchantmentInstance> enchantmentOfBook = new ArrayList<>();
 		if (componentMap != null) {
 			for (Object2IntMap.Entry<Holder<Enchantment>> entry : componentMap.entrySet()) {
-				Enchantment enchantment = entry.getKey().value();
-				int enchantmentLevel = entry.getIntValue();
-				enchantmentOfBook.add(new EnchantmentInstance(entry.getKey(), enchantmentLevel));
+				enchantmentOfBook.add(new EnchantmentInstance(entry.getKey(), entry.getIntValue()));
 			}
 		}
 		return enchantmentOfBook;
@@ -359,10 +347,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		clearCache();
 		clearPage();
 		playSound();
-	}
-
-	public void resetPage() {
-		currentPage = 0;
 	}
 
 	public void nextPage() {
