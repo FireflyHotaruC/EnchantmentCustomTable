@@ -177,7 +177,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 
 	@Override
 	public boolean stillValid(Player player) {
-		return true;
+		return Container.stillValidBlockEntity(boundBlockEntity, player);
 	}
 
 	@Override
