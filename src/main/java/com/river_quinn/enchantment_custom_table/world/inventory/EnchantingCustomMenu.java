@@ -188,9 +188,10 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		itemstack = stackInSlot.copy();
 		if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
 			if (!moveItemStackTo(stackInSlot, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, slots.size(), true)) return ItemStack.EMPTY;
-			removeEnchantment(stackInSlot); slot.set(ItemStack.EMPTY); return itemstack; }
+			removeEnchantment(stackInSlot); slot.set(ItemStack.EMPTY); return itemstack;
+		}
 			if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
-				if (!moveItemStackTo(stackInSlot, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, this.slots.size(), true))
+				if (!moveItemStackTo(stackInSlot, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, slots.size(), true))
 					return ItemStack.EMPTY;
 				if (index == 0) {
 					clearCache();
@@ -198,7 +199,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 				}
 			} else if (!moveItemStackTo(stackInSlot, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false)) {
 				if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27) {
-					if (!moveItemStackTo(stackInSlot, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, this.slots.size(), true))
+					if (!moveItemStackTo(stackInSlot, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, slots.size(), true))
 						return ItemStack.EMPTY;
 				} else {
 					if (!moveItemStackTo(stackInSlot, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, false))
