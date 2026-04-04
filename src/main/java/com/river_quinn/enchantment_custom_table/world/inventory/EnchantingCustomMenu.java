@@ -57,12 +57,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	@Override
 	public void clicked(int slotId, int button, ClickType clickType, Player player) {
 		var itemStackToPut = entity.containerMenu.getCarried();
-		if (
-				slotId >= 2 &&
-				slotId < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE &&
-				clickType != ClickType.QUICK_MOVE &&
-				(itemStackToPut.isEmpty() || getSlot(slotId).mayPlace(entity.containerMenu.getCarried()))
-		) {
+		if (slotId >= 2 && slotId < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE && clickType != ClickType.QUICK_MOVE) {
 			var itemStackToReplace = itemHandler.getStackInSlot(slotId);
 			if (!itemStackToPut.isEmpty() && !itemStackToReplace.isEmpty()) {
 				var enchantmentsOnNewStack = getEnchantmentInstanceFromEnchantedBook(itemStackToPut);
@@ -114,7 +109,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		}
 
 		addSlot(new SlotItemHandler(itemHandler, 0, 8, 8) {
-
 			@Override
 			public void setByPlayer(ItemStack newStack, ItemStack oldStack) {
 				super.setByPlayer(newStack, oldStack);
@@ -168,8 +162,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 						public Pair<ResourceLocation, ResourceLocation> getNoItemIcon() {
 							return Pair.of(InventoryMenu.BLOCK_ATLAS, ResourceLocation.fromNamespaceAndPath("enchantment_custom_table", "item/empty_slot_book"));
 						}
-					}
-				));
+					});
 				enchanted_book_index++;
 			}
 		}
