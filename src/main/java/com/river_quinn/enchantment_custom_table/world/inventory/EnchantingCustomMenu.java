@@ -212,6 +212,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			if (itemstack1.getCount() == itemstack.getCount())
 				return ItemStack.EMPTY;
 			slot.onTake(playerIn, itemstack1);
+			if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) { removeEnchantment(itemstack1); }
 		}
 		return itemstack;
 	}
