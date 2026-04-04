@@ -183,10 +183,10 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	public ItemStack quickMoveStack(Player playerIn, int index) {
 		ItemStack itemstack = ItemStack.EMPTY;
 		Slot slot = slots.get(index);
+		ItemStack stackToRemove = slot.getItem().copy();
 		if (slot != null && slot.hasItem()) {
 			ItemStack itemstack1 = slot.getItem();
 			itemstack = itemstack1.copy();
-			if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) { removeEnchantment(itemstack1); }
 			if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
 				if (!this.moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, this.slots.size(), true))
 					return ItemStack.EMPTY;
@@ -212,6 +212,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 				return ItemStack.EMPTY;
 			slot.onTake(playerIn, itemstack1);
 		}
+		if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) { removeEnchantment(stackToRemove); }
 		return itemstack;
 	}
 
