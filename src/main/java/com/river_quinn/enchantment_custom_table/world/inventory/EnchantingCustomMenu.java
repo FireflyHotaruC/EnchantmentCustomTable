@@ -51,7 +51,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	public final Player entity;
 	public int x, y, z;
 	private ContainerLevelAccess access = ContainerLevelAccess.NULL;
-	private final Map<Integer, Slot> enchantedBookSlots = new HashMap<>();
 	public EnchantingCustomTableBlockEntity boundBlockEntity = null;
 
 	@Override
