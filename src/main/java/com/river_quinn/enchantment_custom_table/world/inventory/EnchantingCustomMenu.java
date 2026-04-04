@@ -40,7 +40,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 
 	private final ItemStackHandler itemHandler = new ItemStackHandler(ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE){
 		@Override
-		public int getStackLimit(int slot, ItemStack stack) {
+		public int getStackLimit(int slot, @NotNull ItemStack stack) {
 			return 1;
 		}
 	};
@@ -75,7 +75,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			if (!itemStackToReplace.isEmpty()) {
 				entity.containerMenu.setCarried(itemStackToReplace.copy());
 				var hasRegenerated = removeEnchantment(itemStackToReplace);
-				if (!hasRegenerated) {
+				if (!hasRegenerated && enchantmentIndexInCache < enchantmentsOnCurrentTool.size()) {
 					enchantmentsOnCurrentTool.set(enchantmentIndexInCache, ItemStack.EMPTY);
 				}
 			} else {
@@ -116,8 +116,8 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 					currentPage = 0;
 					updateEnchantedBookSlots();
 				} else {
-					clearCache();
 					clearPage();
+					clearCache();
 				}
 			}
 		});
@@ -183,8 +183,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	@Override
 	public ItemStack quickMoveStack(Player playerIn, int index) {
 		ItemStack itemstack = ItemStack.EMPTY;
-		Slot slot = (Slot) this.slots.get(index);
-		ItemStack itemStackToOperate = slot.getItem().copy();
+		Slot slot = slots.get(index);
 		if (slot != null && slot.hasItem()) {
 			ItemStack itemstack1 = slot.getItem();
 			itemstack = itemstack1.copy();
@@ -208,10 +207,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			if (itemstack1.getCount() == itemstack.getCount())
 				return ItemStack.EMPTY;
 			slot.onTake(playerIn, itemstack1);
-		}
-
-		if (index > 1 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
-			removeEnchantment(itemStackToOperate);
 		}
 		return itemstack;
 	}
@@ -369,11 +364,14 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	public void updateEnchantedBookSlots() {
 		itemHandler.setStackInSlot(1, ItemStack.EMPTY);
 		int offset = currentPage * ENCHANTED_BOOK_SLOT_SIZE;
-		if (totalPage > 0) {
-			for (int i = 0; i < ENCHANTED_BOOK_SLOT_SIZE; i++) {
-				int listIdx = i + offset;
-				int slotIdx = i + 2;
+		for (int i = 0; i < ENCHANTED_BOOK_SLOT_SIZE; i++) {
+			int slotIdx = i + 2;
+			int listIdx = i + offset;
+
+			if (totalPage > 0 && listIdx < enchantmentsOnCurrentTool.size()) {
 				itemHandler.setStackInSlot(slotIdx, enchantmentsOnCurrentTool.get(listIdx));
+			} else {
+				itemHandler.setStackInSlot(slotIdx, ItemStack.EMPTY);
 			}
 		}
 	}
@@ -382,7 +380,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		for (int i = 2; i < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE; i++) {
 			itemHandler.setStackInSlot(i, ItemStack.EMPTY);
 		}
-		genEnchantedBookCache();
 	}
 
 	public void clearPage() {
@@ -485,7 +482,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		if (existing == null || existing.isEmpty()) return false;
 
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(existing);
-		boolean regenerate = false;
 
 		for (var inst : list) {
 			Holder<Enchantment> e = inst.enchantment;
@@ -497,10 +493,9 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
 		int oldPages = totalPage;
 		genEnchantedBookCache();
-		if (totalPage != oldPages) regenerate = true;
 		updateEnchantedBookSlots();
 		playSound();
-		return regenerate;
+		return totalPage != oldPages;
 	}
 
 	private void playSound() {
