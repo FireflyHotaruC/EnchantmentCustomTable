@@ -72,8 +72,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			int indexOffset = currentPage * ENCHANTED_BOOK_SLOT_SIZE;
 			for (int i = 0; i < ENCHANTED_BOOK_SLOT_SIZE; i++) {
 				int listIdx = i + indexOffset; int slotIdx = i + 2; if (listIdx < enchantmentsOnCurrentTool.size())
-				{ enchantmentsOnCurrentTool.set(listIdx, itemHandler.getStackInSlot(slotIdx));
-				}
+				{ enchantmentsOnCurrentTool.set(listIdx, itemHandler.getStackInSlot(slotIdx)); }
 			}
 			if (!itemStackToReplace.isEmpty()) {
 				entity.containerMenu.setCarried(itemStackToReplace.copy());
@@ -188,12 +187,16 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			ItemStack itemstack1 = slot.getItem();
 			itemstack = itemstack1.copy();
 			if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
+				if (!this.moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, this.slots.size(), true))
+					return ItemStack.EMPTY;
+
+				if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
+					removeEnchantment(itemstack1);
+				}
 				if (index == 0) {
 					clearCache();
 					clearPage();
 				}
-				if (!this.moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, this.slots.size(), true))
-					return ItemStack.EMPTY;
 			} else if (!this.moveItemStackTo(itemstack1, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false)) {
 				if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27) {
 					if (!this.moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, this.slots.size(), true))
@@ -211,7 +214,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			if (itemstack1.getCount() == itemstack.getCount())
 				return ItemStack.EMPTY;
 			slot.onTake(playerIn, itemstack1);
-			if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) { removeEnchantment(itemstack1); }
 		}
 		return itemstack;
 	}
@@ -501,6 +503,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		if (existing == null || existing.isEmpty()) return false;
 
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(existing);
+		boolean regenerate = false;
 
 		for (var inst : list) {
 			Holder<Enchantment> e = inst.enchantment;
@@ -510,9 +513,12 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		}
 
 		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
+		int oldPages = totalPage;
+		genEnchantedBookCache();
+		if (totalPage != oldPages) regenerate = true;
 		updateEnchantedBookSlots();
 		playSound();
-		return false;
+		return regenerate;
 	}
 
 	private void playSound() {
