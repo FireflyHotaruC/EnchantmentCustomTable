@@ -69,21 +69,22 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 					return;
 				}
 			}
-
-			int enchantmentIndexInCache = (slotId - 2) + currentPage * ENCHANTED_BOOK_SLOT_SIZE;
-
+			int indexOffset = currentPage * ENCHANTED_BOOK_SLOT_SIZE;
+			for (int i = 0; i < ENCHANTED_BOOK_SLOT_SIZE; i++) {
+				int listIdx = i + indexOffset; int slotIdx = i + 2; if (listIdx < enchantmentsOnCurrentTool.size())
+				{ enchantmentsOnCurrentTool.set(listIdx, itemHandler.getStackInSlot(slotIdx));
+				}
+			}
 			if (!itemStackToReplace.isEmpty()) {
 				entity.containerMenu.setCarried(itemStackToReplace.copy());
-				var hasRegenerated = removeEnchantment(itemStackToReplace);
-				if (!hasRegenerated) {
-					enchantmentsOnCurrentTool.set(enchantmentIndexInCache, ItemStack.EMPTY);
-				}
+				removeEnchantment(itemStackToReplace);
 			} else {
 				entity.containerMenu.setCarried(ItemStack.EMPTY);
 			}
 			if (!itemStackToPut.isEmpty()) {
 				addEnchantment(itemStackToPut, slotId);
 			}
+			genEnchantedBookCache();
 			updateEnchantedBookSlots();
 		} else {
 			super.clicked(slotId, button, clickType, player);
@@ -189,13 +190,9 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			itemstack = itemstack1.copy();
 			if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
 				if (index == 0) {
-					ItemStack tool = itemHandler.getStackInSlot(0);
-					if (!tool.isEmpty()) {
-						ItemEnchantments emptyEnch = ItemEnchantments.EMPTY;
-					}
 					clearCache();
 					clearPage();
-				} else if (index > 1) { removeEnchantment(itemstack1); }
+				}
 				if (!this.moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, this.slots.size(), true))
 					return ItemStack.EMPTY;
 			} else if (!this.moveItemStackTo(itemstack1, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false)) {
@@ -281,13 +278,18 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	@Override
 	public void removed(@NotNull Player playerIn) {
 		super.removed(playerIn);
-		if (playerIn instanceof ServerPlayer) {
-			for (int i = 0; i < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE; i++) {
-				ItemStack stack = itemHandler.getStackInSlot(i);
-				if (!stack.isEmpty()) {
-					playerIn.getInventory().placeItemBackInInventory(stack);
-					itemHandler.setStackInSlot(i, ItemStack.EMPTY);
-				}
+		if (playerIn instanceof ServerPlayer serverPlayer) {
+			for (int i = 2; i < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE; i++)
+				itemHandler.setStackInSlot(i, ItemStack.EMPTY);
+			ItemStack toolStack = itemHandler.getStackInSlot(0);
+			ItemStack extraStack = itemHandler.getStackInSlot(1);
+			if (!toolStack.isEmpty()) {
+				serverPlayer.getInventory().placeItemBackInInventory(toolStack);
+				itemHandler.setStackInSlot(0, ItemStack.EMPTY);
+			}
+			if (!extraStack.isEmpty()) {
+				serverPlayer.getInventory().placeItemBackInInventory(extraStack);
+				itemHandler.setStackInSlot(1, ItemStack.EMPTY);
 			}
 			clearPage();
 			clearCache();
