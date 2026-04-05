@@ -97,7 +97,6 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			if (!itemStackToPut.isEmpty()) {
 				addEnchantment(itemStackToPut, slotId);
 			}
-			updateEnchantedBookSlots();
 		} else {
 			super.clicked(slotId, button, clickType, player);
 		}
@@ -397,6 +396,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			}
 		}
 		genEnchantedBookCache();
+		currentPage = Math.min(currentPage, totalPage > 0 ? totalPage - 1 : 0);
 		currentPage = Math.min(targetPage, totalPage - 1);
 		updateEnchantedBookSlots();
 	}
@@ -407,11 +407,10 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 
 		synchronized (listLock) {
 			for (int i = 0; i < ENCHANTED_BOOK_SLOT_SIZE; i++) {
-				int slotIdx = i + 2;
-				int listIdx = i + offset;
-				if (totalPage > 0 && listIdx >= 0 && listIdx < enchantmentsOnCurrentTool.size()) {
-					itemHandler.setStackInSlot(slotIdx, enchantmentsOnCurrentTool.get(listIdx));
-				} else { itemHandler.setStackInSlot(slotIdx, ItemStack.EMPTY); }
+				int listIdx = offset + i;
+				ItemStack stack = (listIdx < enchantmentsOnCurrentTool.size())
+					? enchantmentsOnCurrentTool.get(listIdx) : ItemStack.EMPTY;
+				itemHandler.setStackInSlot(i + 2, stack);
 			}
 		}
 	}
@@ -425,12 +424,12 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	public void clearPage() {
 		currentPage = 0;
 		totalPage = 0;
-		synchronized (listLock) { enchantmentsOnCurrentTool.clear(); }
+		enchantmentsOnCurrentTool.clear();
 	}
 
 	public void genEnchantedBookCache() {
 		ItemStack tool = itemHandler.getStackInSlot(0);
-		synchronized (listLock) { enchantmentsOnCurrentTool.clear(); }
+		enchantmentsOnCurrentTool.clear();
 		int pages = 1;
 
 		if (!tool.isEmpty()) {
@@ -454,14 +453,14 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 						for (int lv : split) {
 							ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
 							book.enchant(entry.getKey(), lv);
-							synchronized (listLock) { enchantmentsOnCurrentTool.add(book); }
+							enchantmentsOnCurrentTool.add(book);
 						}
 					}
 				} else {
 					for (var entry : ench.entrySet()) {
 						ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
 						book.enchant(entry.getKey(), entry.getIntValue());
-						synchronized (listLock) { enchantmentsOnCurrentTool.add(book); }
+						enchantmentsOnCurrentTool.add(book);
 					}
 				}
 			}
@@ -469,18 +468,11 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			pages = 0;
 		}
 
-		int enchCount;
-		synchronized (listLock) { enchCount = enchantmentsOnCurrentTool.size(); }
-		if (enchCount > 0 && ENCHANTED_BOOK_SLOT_SIZE > 0) {
-			pages = Math.max(1, (enchCount + ENCHANTED_BOOK_SLOT_SIZE - 1) / ENCHANTED_BOOK_SLOT_SIZE);
-		} else if (enchCount == 0) {
-			pages = 0;
-		}
+		int enchCount = enchantmentsOnCurrentTool.size();
+		pages = enchCount == 0 ? 0 : Math.max(1, (enchCount + ENCHANTED_BOOK_SLOT_SIZE - 1) / ENCHANTED_BOOK_SLOT_SIZE);
 		int fullSize = pages * ENCHANTED_BOOK_SLOT_SIZE;
-		synchronized (listLock) {
-			while (enchantmentsOnCurrentTool.size() < fullSize) {
-				enchantmentsOnCurrentTool.add(ItemStack.EMPTY);
-			}
+		while (enchantmentsOnCurrentTool.size() < fullSize) {
+			enchantmentsOnCurrentTool.add(ItemStack.EMPTY);
 		}
 		totalPage = pages;
 		currentPage = totalPage > 0 ? Math.min(currentPage, totalPage - 1) : 0;
@@ -535,10 +527,13 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			Holder<Enchantment> e = inst.enchantment;
 			int curr = mutable.getLevel(e);
 			int next = Math.max(0, curr - inst.level);
+			if (curr != next) regenerate = true;
 			mutable.set(e, next);
 		}
 
 		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
+		genEnchantedBookCache();
+		currentPage = Math.min(currentPage, totalPage > 0 ? totalPage - 1 : 0);
 		updateEnchantedBookSlots();
 		playSound();
 		return regenerate;
