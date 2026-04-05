@@ -197,35 +197,25 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		ItemStack itemstack = ItemStack.EMPTY;
 		Slot slot = slots.get(index);
 		if (slot != null && slot.hasItem()) {
-			ItemStack itemstack1 = slot.getItem();
-			itemstack = itemstack1.copy();
+			ItemStack stack = slot.getItem();
+			itemstack = stack.copy();
 			if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
-				removeEnchantment(itemstack1); itemHandler.setStackInSlot(index, ItemStack.EMPTY); updateEnchantedBookSlots();
-				if (!moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, slots.size(), true)) { return ItemStack.EMPTY; }
+				if (!moveItemStackTo(stack, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, slots.size(), true)) return ItemStack.EMPTY;
+				removeEnchantment(stack); itemHandler.setStackInSlot(index, ItemStack.EMPTY); updateEnchantedBookSlots();
 			} else if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
-				if (!moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, slots.size(), true))
-					return ItemStack.EMPTY;
+				if (!moveItemStackTo(stack, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, slots.size(), true)) return ItemStack.EMPTY;
 				if (index == 0) {
 					clearCache();
 					clearPage();
 				}
-			} else if (!moveItemStackTo(itemstack1, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false)) {
-				if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27) {
-					if (!moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, slots.size(), true))
-						return ItemStack.EMPTY;
-				} else {
-					if (!moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, false))
-						return ItemStack.EMPTY;
-				}
-				return ItemStack.EMPTY;
-			}
-			if (itemstack1.isEmpty())
+			} else { if (!moveItemStackTo(stack, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false)) return ItemStack.EMPTY; }
+			if (stack.isEmpty())
 				slot.set(ItemStack.EMPTY);
 			else
 				slot.setChanged();
-			if (itemstack1.getCount() == itemstack.getCount())
+			if (stack.getCount() == itemstack.getCount())
 				return ItemStack.EMPTY;
-			slot.onTake(playerIn, itemstack1);
+			slot.onTake(playerIn, stack);
 		}
 		return itemstack;
 	}
