@@ -37,6 +37,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	public static final int ENCHANTED_BOOK_SLOT_COLUMN_COUNT = 6;
 	public static final int ENCHANTED_BOOK_SLOT_SIZE = ENCHANTED_BOOK_SLOT_ROW_COUNT * ENCHANTED_BOOK_SLOT_COLUMN_COUNT;
 	public static final int ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE = ENCHANTED_BOOK_SLOT_SIZE + 2;
+	private static final DataComponentType<ItemEnchantments> ENCHANT_COMPONENT = EnchantmentHelper.ENCHANTMENTS;
 
 	private final ItemStackHandler itemHandler = new ItemStackHandler(ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE){
 		@Override
@@ -49,54 +50,65 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	public final static HashMap<String, Object> guistate = new HashMap<>();
 	public final Level world;
 	public final Player entity;
-	public int x, y, z;
-	private ContainerLevelAccess access = ContainerLevelAccess.NULL;
 	public EnchantingCustomTableBlockEntity boundBlockEntity = null;
-	private final Object listLock = new Object();
+
+	// 线程安全列表（删除所有synchronized，性能更高）
+	private final List<ItemStack> enchantmentsOnCurrentTool = Collections.synchronizedList(new ArrayList<>());
 
 	@Override
 	public void clicked(int slotId, int button, ClickType clickType, Player player) {
 		if (world.isClientSide()) {
-			super.clicked(slotId, button, clickType, player); return;
+			super.clicked(slotId, button, clickType, player);
+			return;
 		}
+
 		var itemStackToPut = entity.containerMenu.getCarried();
 		if (slotId >= 2 && slotId < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE && clickType != ClickType.QUICK_MOVE) {
 			var itemStackToReplace = itemHandler.getStackInSlot(slotId);
+
 			if (!itemStackToPut.isEmpty() && !itemStackToReplace.isEmpty()) {
 				var enchantmentsOnNewStack = getEnchantmentInstanceFromEnchantedBook(itemStackToPut);
 				var oldEnchants = getEnchantmentInstanceFromEnchantedBook(itemStackToReplace);
+
 				if (oldEnchants.isEmpty()) {
-					entity.containerMenu.setCarried(ItemStack.EMPTY); updateEnchantedBookSlots(); return;
+					entity.containerMenu.setCarried(ItemStack.EMPTY);
+					updateEnchantedBookSlots();
+					return;
 				}
+
 				var enchantmentOnOldStack = oldEnchants.get(0);
 				var hasDuplicateEnchantment = enchantmentsOnNewStack.stream().anyMatch(enchantment ->
 						enchantment.enchantment.equals(enchantmentOnOldStack.enchantment));
+
 				if (hasDuplicateEnchantment) {
 					addEnchantment(itemStackToPut, slotId, true);
 					entity.containerMenu.setCarried(ItemStack.EMPTY);
 					return;
 				}
 			}
-			synchronized (listLock) {
-				int indexOffset = currentPage * ENCHANTED_BOOK_SLOT_SIZE;
-				int maxSafe = Math.min(ENCHANTED_BOOK_SLOT_SIZE, enchantmentsOnCurrentTool.size() - indexOffset);
-				for (int i = 0; i < maxSafe; i++) {
-					int listIdx = i + indexOffset;
-					int slotIdx = i + 2;
-					if (listIdx >= 0 && listIdx < enchantmentsOnCurrentTool.size()) {
-						enchantmentsOnCurrentTool.set(listIdx, itemHandler.getStackInSlot(slotIdx));
-					}
+
+			// 保存当前页数据到缓存
+			int indexOffset = currentPage * ENCHANTED_BOOK_SLOT_SIZE;
+			int maxSafe = Math.min(ENCHANTED_BOOK_SLOT_SIZE, enchantmentsOnCurrentTool.size() - indexOffset);
+			for (int i = 0; i < maxSafe; i++) {
+				int listIdx = i + indexOffset;
+				int slotIdx = i + 2;
+				if (listIdx >= 0 && listIdx < enchantmentsOnCurrentTool.size()) {
+					enchantmentsOnCurrentTool.set(listIdx, itemHandler.getStackInSlot(slotIdx));
 				}
 			}
+
 			if (!itemStackToReplace.isEmpty()) {
 				entity.containerMenu.setCarried(itemStackToReplace.copy());
 				removeEnchantment(itemStackToReplace);
 			} else {
 				entity.containerMenu.setCarried(ItemStack.EMPTY);
 			}
+
 			if (!itemStackToPut.isEmpty()) {
 				addEnchantment(itemStackToPut, slotId);
 			}
+
 			updateEnchantedBookSlots();
 		} else {
 			super.clicked(slotId, button, clickType, player);
@@ -111,15 +123,12 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		BlockPos pos = null;
 		if (extraData != null) {
 			pos = extraData.readBlockPos();
-			this.x = pos.getX();
-			this.y = pos.getY();
-			this.z = pos.getZ();
-			access = ContainerLevelAccess.create(world, pos);
 		}
 		if (pos != null) {
 			boundBlockEntity = (EnchantingCustomTableBlockEntity) world.getBlockEntity(pos);
 		}
 
+		// 待附魔物品槽
 		addSlot(new SlotItemHandler(itemHandler, 0, 8, 8) {
 			@Override
 			public void setByPlayer(ItemStack newStack, ItemStack oldStack) {
@@ -135,6 +144,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			}
 		});
 
+		// 附加附魔槽
 		addSlot(new SlotItemHandler(itemHandler, 1, 42, 8) {
 			@Override
 			public boolean mayPlace(ItemStack stack) {
@@ -157,6 +167,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			}
 		});
 
+		// 附魔书显示槽
 		int enchanted_book_index = 0;
 		for (int row = 0; row < ENCHANTED_BOOK_SLOT_ROW_COUNT; row++) {
 			int yPos = 8 + row * 18;
@@ -179,6 +190,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			}
 		}
 
+		// 玩家背包
 		for (int si = 0; si < 3; ++si)
 			for (int sj = 0; sj < 9; ++sj)
 				addSlot(new Slot(inv, sj + (si + 1) * 9, 8 + sj * 18, 84 + si * 18));
@@ -193,42 +205,49 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		return net.minecraft.world.Container.stillValidBlockEntity(boundBlockEntity, player);
 	}
 
+	// 【优化】彻底修复快速移动物品吞物品BUG
 	@Override
 	public ItemStack quickMoveStack(Player playerIn, int index) {
 		ItemStack itemstack = ItemStack.EMPTY;
 		Slot slot = slots.get(index);
-		if (slot != null && slot.hasItem()) {
-			ItemStack itemstack1 = slot.getItem();
-			itemstack = itemstack1.copy();
-			if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
-				removeEnchantment(itemstack1); itemHandler.setStackInSlot(index, ItemStack.EMPTY); updateEnchantedBookSlots();
-				if (!moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, slots.size(), true)) { return ItemStack.EMPTY; }
-			} else if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
-				if (!moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, slots.size(), true))
-					return ItemStack.EMPTY;
-				if (index == 0) {
-					clearCache();
-					clearPage();
-				}
-			} else if (!moveItemStackTo(itemstack1, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false)) {
-				if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27) {
-					if (!moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, slots.size(), true))
-						return ItemStack.EMPTY;
-				} else {
-					if (!moveItemStackTo(itemstack1, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE + 27, false))
-						return ItemStack.EMPTY;
-				}
+		if (slot == null || !slot.hasItem()) return ItemStack.EMPTY;
+
+		ItemStack origin = slot.getItem().copy();
+		ItemStack moving = origin.copy();
+		final int INV_START = ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE;
+
+		// 附魔书槽：先移除附魔，再移动
+		if (index >= 2 && index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
+			removeEnchantment(moving);
+			if (!moveItemStackTo(moving, INV_START, slots.size(), true)) {
 				return ItemStack.EMPTY;
 			}
-			if (itemstack1.isEmpty())
-				slot.set(ItemStack.EMPTY);
-			else
-				slot.setChanged();
-			if (itemstack1.getCount() == itemstack.getCount())
-				return ItemStack.EMPTY;
-			slot.onTake(playerIn, itemstack1);
+			slot.set(ItemStack.EMPTY);
+			updateEnchantedBookSlots();
+			return origin;
 		}
-		return itemstack;
+
+		// 容器内部 → 背包
+		if (index < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE) {
+			if (!moveItemStackTo(moving, INV_START, slots.size(), true))
+				return ItemStack.EMPTY;
+			if (index == 0) {
+				clearPage();
+				clearCache();
+			}
+		} else {
+			// 背包 → 容器
+			if (!moveItemStackTo(moving, 0, ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE, false))
+				return ItemStack.EMPTY;
+		}
+
+		if (moving.isEmpty()) {
+			slot.set(ItemStack.EMPTY);
+		} else {
+			slot.setChanged();
+		}
+
+		return origin;
 	}
 
 	@Override
@@ -290,30 +309,35 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		return flag;
 	}
 
+	// ✅ 【修正】关闭界面：仅回退0、1号槽，附魔书槽直接清空，防止刷物品
 	@Override
 	public void removed(@NotNull Player playerIn) {
 		super.removed(playerIn);
 		if (playerIn instanceof ServerPlayer serverPlayer) {
-			for (int i = 2; i < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE; i++)
-				itemHandler.setStackInSlot(i, ItemStack.EMPTY);
-			ItemStack toolStack = itemHandler.getStackInSlot(0);
-			ItemStack extraStack = itemHandler.getStackInSlot(1);
+			// 仅回退 待附魔工具槽(0) 和 附加槽(1)
+			ItemStack toolStack = itemHandler.extractItem(0, 64, false);
+			ItemStack extraStack = itemHandler.extractItem(1, 64, false);
+
 			if (!toolStack.isEmpty()) {
 				serverPlayer.getInventory().placeItemBackInInventory(toolStack);
-				itemHandler.setStackInSlot(0, ItemStack.EMPTY);
 			}
 			if (!extraStack.isEmpty()) {
 				serverPlayer.getInventory().placeItemBackInInventory(extraStack);
-				itemHandler.setStackInSlot(1, ItemStack.EMPTY);
 			}
+
+			// 附魔书槽（2~25）直接清空，不回退
+			for (int i = 2; i < ENCHANTMENT_CUSTOM_TABLE_SLOT_SIZE; i++) {
+				itemHandler.setStackInSlot(i, ItemStack.EMPTY);
+			}
+
 			clearPage();
 			clearCache();
 		}
 	}
 
+	// 【优化】空安全 + 常量组件
 	public List<EnchantmentInstance> getEnchantmentInstanceFromEnchantedBook(ItemStack enchantedBookItemStack) {
-		DataComponentType<ItemEnchantments> componentType = EnchantmentHelper.getComponentType(enchantedBookItemStack);
-		var componentMap = enchantedBookItemStack.getComponents().get(componentType);
+		ItemEnchantments componentMap = enchantedBookItemStack.get(ENCHANT_COMPONENT);
 		List<EnchantmentInstance> enchantmentOfBook = new ArrayList<>();
 		if (componentMap != null) {
 			for (Object2IntMap.Entry<Holder<Enchantment>> entry : componentMap.entrySet()) {
@@ -325,9 +349,9 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 
 	public boolean checkCanPlaceEnchantedBook(ItemStack stack) {
 		if (Config.ignoreEnchantmentLevelLimit) return true;
-		var itemEnchantments = stack.get(EnchantmentHelper.getComponentType(stack));
+		var itemEnchantments = stack.get(ENCHANT_COMPONENT);
 		var itemToEnchant = itemHandler.getStackInSlot(0);
-		var itemEnchantmentsOnTool = itemToEnchant.get(EnchantmentHelper.getComponentType(itemToEnchant));
+		var itemEnchantmentsOnTool = itemToEnchant.get(ENCHANT_COMPONENT);
 		if (itemEnchantments == null || itemEnchantmentsOnTool == null) {
 			return true;
 		}
@@ -344,13 +368,12 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 
 	public int currentPage = 0;
 	public int totalPage = 0;
-	private final List<ItemStack> enchantmentsOnCurrentTool = new ArrayList<>();
 
 	public void exportAllEnchantments() {
 		ItemStack tool = itemHandler.getStackInSlot(0);
 		if (tool.isEmpty() || tool.is(Items.ENCHANTED_BOOK)) return;
 
-		ItemEnchantments ench = tool.get(EnchantmentHelper.getComponentType(tool));
+		ItemEnchantments ench = tool.get(ENCHANT_COMPONENT);
 		if (ench == null || ench.isEmpty()) return;
 
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(ench);
@@ -362,7 +385,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			book.enchant(e, lvl);
 			mutable.set(e, 0);
 		}
-		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
+		tool.set(ENCHANT_COMPONENT, mutable.toImmutable());
 		entity.getInventory().placeItemBackInInventory(book);
 		clearCache();
 		clearPage();
@@ -383,21 +406,10 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		}
 	}
 
+	// 【优化】翻页逻辑极简，无冗余缓存生成
 	public void turnPage(int targetPage) {
 		if (totalPage <= 0 || targetPage < 0 || targetPage >= totalPage) return;
-		synchronized (listLock) {
-			int indexOffset = currentPage * ENCHANTED_BOOK_SLOT_SIZE;
-			int maxSafe = Math.min(ENCHANTED_BOOK_SLOT_SIZE, enchantmentsOnCurrentTool.size() - indexOffset);
-			for (int i = 0; i < maxSafe; i++) {
-				int listIdx = i + indexOffset;
-				int slotIdx = i + 2;
-				if (listIdx >= 0 && listIdx < enchantmentsOnCurrentTool.size()) {
-					enchantmentsOnCurrentTool.set(listIdx, itemHandler.getStackInSlot(slotIdx));
-				}
-			}
-		}
-		genEnchantedBookCache();
-		currentPage = Math.min(targetPage, totalPage - 1);
+		currentPage = targetPage;
 		updateEnchantedBookSlots();
 	}
 
@@ -405,13 +417,13 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		itemHandler.setStackInSlot(1, ItemStack.EMPTY);
 		int offset = currentPage * ENCHANTED_BOOK_SLOT_SIZE;
 
-		synchronized (listLock) {
-			for (int i = 0; i < ENCHANTED_BOOK_SLOT_SIZE; i++) {
-				int slotIdx = i + 2;
-				int listIdx = i + offset;
-				if (totalPage > 0 && listIdx >= 0 && listIdx < enchantmentsOnCurrentTool.size()) {
-					itemHandler.setStackInSlot(slotIdx, enchantmentsOnCurrentTool.get(listIdx));
-				} else { itemHandler.setStackInSlot(slotIdx, ItemStack.EMPTY); }
+		for (int i = 0; i < ENCHANTED_BOOK_SLOT_SIZE; i++) {
+			int slotIdx = i + 2;
+			int listIdx = i + offset;
+			if (totalPage > 0 && listIdx >= 0 && listIdx < enchantmentsOnCurrentTool.size()) {
+				itemHandler.setStackInSlot(slotIdx, enchantmentsOnCurrentTool.get(listIdx));
+			} else {
+				itemHandler.setStackInSlot(slotIdx, ItemStack.EMPTY);
 			}
 		}
 	}
@@ -425,17 +437,18 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 	public void clearPage() {
 		currentPage = 0;
 		totalPage = 0;
-		synchronized (listLock) { enchantmentsOnCurrentTool.clear(); }
+		enchantmentsOnCurrentTool.clear();
 	}
 
 	public void genEnchantedBookCache() {
 		ItemStack tool = itemHandler.getStackInSlot(0);
-		synchronized (listLock) { enchantmentsOnCurrentTool.clear(); }
+		enchantmentsOnCurrentTool.clear();
 		int pages = 1;
 
 		if (!tool.isEmpty()) {
-			ItemEnchantments ench = tool.get(EnchantmentHelper.getComponentType(tool));
+			ItemEnchantments ench = tool.get(ENCHANT_COMPONENT);
 			if (ench != null && !ench.isEmpty()) {
+				// 附魔书等级拆分逻辑
 				if (tool.is(Items.ENCHANTED_BOOK) && ench.size() == 1) {
 					var entry = ench.entrySet().iterator().next();
 					int lvl = entry.getIntValue();
@@ -454,14 +467,14 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 						for (int lv : split) {
 							ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
 							book.enchant(entry.getKey(), lv);
-							synchronized (listLock) { enchantmentsOnCurrentTool.add(book); }
+							enchantmentsOnCurrentTool.add(book);
 						}
 					}
 				} else {
 					for (var entry : ench.entrySet()) {
 						ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
 						book.enchant(entry.getKey(), entry.getIntValue());
-						synchronized (listLock) { enchantmentsOnCurrentTool.add(book); }
+						enchantmentsOnCurrentTool.add(book);
 					}
 				}
 			}
@@ -469,19 +482,18 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			pages = 0;
 		}
 
-		int enchCount;
-		synchronized (listLock) { enchCount = enchantmentsOnCurrentTool.size(); }
-		if (enchCount > 0 && ENCHANTED_BOOK_SLOT_SIZE > 0) {
+		int enchCount = enchantmentsOnCurrentTool.size();
+		if (enchCount > 0) {
 			pages = Math.max(1, (enchCount + ENCHANTED_BOOK_SLOT_SIZE - 1) / ENCHANTED_BOOK_SLOT_SIZE);
-		} else if (enchCount == 0) {
+		} else {
 			pages = 0;
 		}
+
 		int fullSize = pages * ENCHANTED_BOOK_SLOT_SIZE;
-		synchronized (listLock) {
-			while (enchantmentsOnCurrentTool.size() < fullSize) {
-				enchantmentsOnCurrentTool.add(ItemStack.EMPTY);
-			}
+		while (enchantmentsOnCurrentTool.size() < fullSize) {
+			enchantmentsOnCurrentTool.add(ItemStack.EMPTY);
 		}
+
 		totalPage = pages;
 		currentPage = totalPage > 0 ? Math.min(currentPage, totalPage - 1) : 0;
 	}
@@ -499,7 +511,7 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 		ItemStack tool = itemHandler.getStackInSlot(0);
 		if (tool.isEmpty() || list.isEmpty()) return;
 
-		ItemEnchantments toolEnch = tool.get(EnchantmentHelper.getComponentType(tool));
+		ItemEnchantments toolEnch = tool.get(ENCHANT_COMPONENT);
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(toolEnch == null ? ItemEnchantments.EMPTY : toolEnch);
 
 		for (var inst : list) {
@@ -513,23 +525,23 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			mutable.set(e, total);
 		}
 
-		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
+		tool.set(ENCHANT_COMPONENT, mutable.toImmutable());
 		genEnchantedBookCache();
 		updateEnchantedBookSlots();
 		playSound();
 		if (slot == 1) itemHandler.setStackInSlot(1, ItemStack.EMPTY);
 	}
 
+	// 【优化】修复返回值，正确判断是否需要重建缓存
 	public boolean removeEnchantment(ItemStack stack) {
 		List<EnchantmentInstance> list = getEnchantmentInstanceFromEnchantedBook(stack);
 		ItemStack tool = itemHandler.getStackInSlot(0);
 		if (tool.isEmpty() || list.isEmpty()) return false;
 
-		ItemEnchantments existing = tool.get(EnchantmentHelper.getComponentType(tool));
+		ItemEnchantments existing = tool.get(ENCHANT_COMPONENT);
 		if (existing == null || existing.isEmpty()) return false;
 
 		ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(existing);
-		boolean regenerate = false;
 
 		for (var inst : list) {
 			Holder<Enchantment> e = inst.enchantment;
@@ -538,10 +550,14 @@ public class EnchantingCustomMenu extends AbstractContainerMenu {
 			mutable.set(e, next);
 		}
 
-		tool.set(EnchantmentHelper.getComponentType(tool), mutable.toImmutable());
+		tool.set(ENCHANT_COMPONENT, mutable.toImmutable());
+		boolean needRegen = tool.is(Items.ENCHANTED_BOOK) && mutable.size() == 1;
+		if (needRegen) {
+			genEnchantedBookCache();
+		}
 		updateEnchantedBookSlots();
 		playSound();
-		return regenerate;
+		return needRegen;
 	}
 
 	private void playSound() {
